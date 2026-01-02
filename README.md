@@ -27,12 +27,16 @@ A standard 32x32-bit Register File.
 * **Write Port:** `writeAddress`, `writeData` (Synchronous on Clock)
 * **Constraint:** Register 0 is hardwired to 0. Reads from `5'b00000` always return `32'b0`.
 
-**Verification:**
+**Verification Results:**
 Verified read-after-write consistency and `x0` immutability.
 
 ![Register File Waveform](images/alu.png)
 *Figure 2: Waveform showing simultaneous reads and a synchronous write operation (Writing 0xDEADBEEF to reg x1).*
 
+Automated self-checking testbenches verify correct integer arithmetic and register behavior.
+
+![Unit Test Pass](unit_test_pass.png)
+*Figure 3: Console output showing all 7 ALU test cases passing successfully.*
 ---
 
 ## 🚀 How to Run
