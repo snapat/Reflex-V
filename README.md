@@ -36,6 +36,7 @@ Verified read-after-write consistency and `x0` immutability.
 Automated self-checking testbenches verify correct integer arithmetic and register behavior.
 
 ![Unit Test Pass](images/unit_test_pass.png)
+
 *Figure 3: Console output showing all 7 ALU test cases passing successfully.*
 ---
 
