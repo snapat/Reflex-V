@@ -1,3 +1,10 @@
 obj_dir/
+
 *.vcd
+
+# Ignore Mac system files
+.DS_Store
+
+# Ignore executables (optional, but good practice)
 *.exe
+*.o
