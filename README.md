@@ -18,7 +18,7 @@ A pure combinational logic block handling all integer arithmetic and logical ope
 **Verification:**
 The ALU was verified against a C++ testbench checking corner cases and standard arithmetic.
 
-![ALU Waveform](regfile.png)
+![ALU Waveform](images/regfile.png)
 *Figure 1: GTKWave trace demonstrating ALU operation switching between ADD (0x0) and SUB (0x1).*
 
 ### 2. Register File
@@ -30,7 +30,7 @@ A standard 32x32-bit Register File.
 **Verification:**
 Verified read-after-write consistency and `x0` immutability.
 
-![Register File Waveform](alu.png)
+![Register File Waveform](images/alu.png)
 *Figure 2: Waveform showing simultaneous reads and a synchronous write operation (Writing 0xDEADBEEF to reg x1).*
 
 ---
