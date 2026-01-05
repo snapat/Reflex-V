@@ -20,11 +20,11 @@ int main(int argc, char** argv) {
         
         // Write to Register x1 on cycle 4
         if (i == 4) {
-            top->writeEnable = 1;
+            top->registerWriteEnable = 1;
             top->writeAddress = 1;
             top->writeData = 0xDEADBEEF;
         } else {
-            top->writeEnable = 0;
+            top->registerWriteEnable = 0;
         }
 
         // Read Register x1 on cycle 8
