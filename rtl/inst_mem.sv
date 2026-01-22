@@ -1,14 +1,20 @@
 module inst_mem (
     input  logic [31:0] romAxiReadAddress,
-    output logic [31:0] romAxiReadData
+    output logic [31:0] romAxiReadData,
+    
+    input  logic [31:0] busReadAddress,
+    output logic [31:0] busReadData
 );
-    // 1024 words = 4KB (Small enough for LUTRAM to avoid block RAM timing issues)
     logic [31:0] romArray [0:1023];
 
     initial begin
-        $readmemh("main.hex", romArray);
+        $readmemh("firmware/firmware.hex", romArray);
     end
 
-    // Combinational Read (Instant)
+    // Port A: Instruction Fetch
     assign romAxiReadData = romArray[romAxiReadAddress[11:2]];
+    
+    // Port B: Data Bus Read
+    assign busReadData = romArray[busReadAddress[11:2]];
+
 endmodule

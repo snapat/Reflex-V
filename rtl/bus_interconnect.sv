@@ -29,72 +29,83 @@ module bus_interconnect (
     input  logic [31:0] ioAxiReadData,      input  logic ioAxiReadValidData, output logic ioAxiReadReadyData
 );
 
-    logic activeMaster; 
-    logic [31:0] currAddr_R, currAddr_W, currData_W;
-    logic        currValid_R, currValid_W, currValidData_W;
-
+    // --- 1. STABLE ARBITRATION ---
+    logic activeMasterReg; 
     always_ff @(posedge clock or negedge resetActiveLow) begin
-        if (!resetActiveLow) activeMaster <= 1'b0;
-        else if (activeMaster == 0 && (dmaAxiReadValid || dmaAxiWriteValid)) activeMaster <= 1'b1;
-        else if (activeMaster == 1 && (!dmaAxiReadValid && !dmaAxiWriteValid)) activeMaster <= 1'b0;
+        if (!resetActiveLow) activeMasterReg <= 1'b0;
+        else if (activeMasterReg == 0 && (dmaAxiReadValid || dmaAxiWriteValid)) activeMasterReg <= 1'b1;
+        else if (activeMasterReg == 1 && (!dmaAxiReadValid && !dmaAxiWriteValid)) activeMasterReg <= 1'b0;
     end
 
+    // --- 2. MASTER MUX ---
+    logic [31:0] currAddr_R, currAddr_W, currData_W;
+    logic        currValid_R, currValid_W;
+
     always_comb begin
-        // --- 1. DEFAULT HANDSHAKE TIES (FIXES PORTSHORT) ---
-        cpuAxiWriteReady = 1'b1; 
-        cpuAxiWriteReadyData = 1'b1;
-        cpuAxiReadReady  = 1'b1; 
-        cpuAxiReadValidData  = 1'b1;
-        dmaAxiWriteReady = 1'b1; 
-        dmaAxiWriteReadyData = 1'b1;
-        dmaAxiReadReady  = 1'b1; 
-        dmaAxiReadValidData  = 1'b1;
-
-        romAxiReadReadyData  = 1'b1;
-        ramAxiWriteValidData = 1'b1; 
-        ramAxiReadReadyData = 1'b1;
-        ioAxiWriteValidData  = 1'b1; 
-        ioAxiReadReadyData  = 1'b1;
-
-        // --- 2. ADDRESS/DATA DEFAULTS ---
-        ramAxiWriteValid = 0; ioAxiWriteValid = 0; romAxiReadValid = 0;
-        ramAxiReadValid  = 0; ioAxiReadValid  = 0;
-        cpuAxiReadData = 0;   dmaAxiReadData = 0;
-        
-        romAxiReadAddress = 0; ramAxiWriteAddress = 0; ramAxiWriteData = 0;
-        ramAxiReadAddress = 0; ioAxiWriteAddress  = 0; ioAxiWriteData = 0;
-        ioAxiReadAddress  = 0;
-
-        // --- 3. MASTER MUX ---
-        if (activeMaster == 0) begin
+        if (activeMasterReg == 0) begin
             currAddr_R = cpuAxiReadAddress;  currValid_R = cpuAxiReadValid;
             currAddr_W = cpuAxiWriteAddress; currValid_W = cpuAxiWriteValid;
-            currData_W = cpuAxiWriteData;    currValidData_W = cpuAxiWriteValidData;
+            currData_W = cpuAxiWriteData;
         end else begin
             currAddr_R = dmaAxiReadAddress;  currValid_R = dmaAxiReadValid;
             currAddr_W = dmaAxiWriteAddress; currValid_W = dmaAxiWriteValid;
-            currData_W = dmaAxiWriteData;    currValidData_W = dmaAxiWriteValidData;
+            currData_W = dmaAxiWriteData;
         end
+    end
 
-        // --- 4. SLAVE DEMUX ---
-        if (currValid_R) begin
-            if (currAddr_R[30]) begin 
-                ioAxiReadAddress = currAddr_R; ioAxiReadValid = 1;
-                if (!activeMaster) cpuAxiReadData = ioAxiReadData; else dmaAxiReadData = ioAxiReadData;
-            end else if (currAddr_R[29]) begin 
-                ramAxiReadAddress = currAddr_R; ramAxiReadValid = 1;
-                if (!activeMaster) cpuAxiReadData = ramAxiReadData; else dmaAxiReadData = ramAxiReadData;
-            end
-        end
+    
 
+    // --- 3. SLAVE ROUTING (Latch-Free) ---
+    always_comb begin
+        // Reset Handshakes
+        cpuAxiWriteReady = 1'b1; cpuAxiWriteReadyData = 1'b1; cpuAxiReadReady = 1'b1;
+        dmaAxiWriteReady = 1'b1; dmaAxiWriteReadyData = 1'b1; dmaAxiReadReady = 1'b1;
+        
+        // MANDATORY: Initialize outputs to prevent latches
+        cpuAxiReadData = 32'h0;
+        dmaAxiReadData = 32'h0;
+        ramAxiWriteValid = 0; 
+        ioAxiWriteValid = 0; 
+        romAxiReadValid = 0;
+        ramAxiReadValid  = 0; 
+        ioAxiReadValid  = 0;
+
+        // Drive Slave Addresses/Data
+        ramAxiWriteAddress = currAddr_W; ramAxiWriteData = currData_W;
+        ioAxiWriteAddress  = currAddr_W; ioAxiWriteData  = currData_W;
+        ramAxiReadAddress  = currAddr_R; ioAxiReadAddress  = currAddr_R;
+        romAxiReadAddress  = currAddr_R;
+
+        // Write Demux
         if (currValid_W) begin
-            if (currAddr_W[30]) begin 
-                ioAxiWriteAddress = currAddr_W; ioAxiWriteValid = 1;
-                ioAxiWriteData = currData_W; 
-            end else begin 
-                ramAxiWriteAddress = currAddr_W; ramAxiWriteValid = 1;
-                ramAxiWriteData = currData_W;
+            if (currAddr_W[30])      ioAxiWriteValid = 1;
+            else if (currAddr_W[29]) ramAxiWriteValid = 1;
+        end
+
+        // Read Demux
+        if (currValid_R) begin
+            if (currAddr_R[30]) begin
+                ioAxiReadValid = 1;
+                if (!activeMasterReg) cpuAxiReadData = ioAxiReadData; else dmaAxiReadData = ioAxiReadData;
+            end else if (currAddr_R[29]) begin
+                ramAxiReadValid = 1;
+                if (!activeMasterReg) cpuAxiReadData = ramAxiReadData; else dmaAxiReadData = ramAxiReadData;
+            end else begin
+                romAxiReadValid = 1;
+                if (!activeMasterReg) cpuAxiReadData = romAxiReadData; else dmaAxiReadData = 32'h0;
             end
         end
     end
+
+    
+
+    // Pass-through Ready/Valid Data flags
+    assign cpuAxiReadValidData = 1'b1;
+    assign dmaAxiReadValidData = 1'b1;
+    assign ramAxiWriteValidData = 1'b1;
+    assign ioAxiWriteValidData = 1'b1;
+    assign romAxiReadReadyData = 1'b1;
+    assign ramAxiReadReadyData = 1'b1;
+    assign ioAxiReadReadyData = 1'b1;
+
 endmodule

@@ -92,7 +92,7 @@ module controller (
                     aluOperationCategory = 2'b01; // force sub logic (to compare)
                 end
                 
-                // new: system instructions (mret)
+                //  system instructions (mret)
                 // opcode 1110011 is for environment calls / breaks / returns
                 7'b1110011: begin
                     registerWriteEnable = 0;
@@ -102,11 +102,39 @@ module controller (
                     isBranch            = 0;
                     aluOperationCategory = 2'b00;
                     
-                    // we assume it's mret because we aren't supporting ecall yet.
                     // this signal tells the pc mux to load from mepc.
                     isReturn = 1; 
                 end
 
+                // LUI (Load Upper Immediate) - Critical for 'la sp, ...'
+                7'b0110111: begin
+                    registerWriteEnable = 1;
+                    aluInputSource      = 1; // Use Immediate
+                    memoryWriteEnable   = 0;
+                    resultSource        = 0; // Select ALU result
+                    isBranch            = 0; 
+                    aluOperationCategory = 2'b00; // Add
+                end
+
+                // JAL (Jump and Link) - Critical for 'call'
+                7'b1101111: begin
+                    registerWriteEnable = 1; // Save PC+4
+                    aluInputSource      = 1; 
+                    memoryWriteEnable   = 0;
+                    resultSource        = 0; 
+                    isBranch            = 1; // Jump!
+                    aluOperationCategory = 2'b00;
+                end
+
+                // JALR (Jump and Link Register) - Critical for 'ret'
+                7'b1100111: begin
+                    registerWriteEnable = 1; // Save PC+4
+                    aluInputSource      = 1; // Use Imm
+                    memoryWriteEnable   = 0;
+                    resultSource        = 0;
+                    isBranch            = 1; // Jump!
+                    aluOperationCategory = 2'b00; // Add (Reg + Imm)
+                end
                 default: begin
                     // unknown instruction? do nothing.
                     registerWriteEnable = 0;

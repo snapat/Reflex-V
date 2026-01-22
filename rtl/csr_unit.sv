@@ -2,26 +2,36 @@ module csr_unit (
     input  logic        clock,
     input  logic        resetActiveLow,
     
-    // Commands from Controller
-    input  logic        csrWriteEnable, // High when taking a Trap
-    input  logic [31:0] pcFromCore,     // The PC to save (Current PC)
+    // Hardware Trap Interface
+    input  logic        csrWriteEnable, 
+    input  logic [31:0] pcFromCore,     
     
-    // Output to PC Mux
-    output logic [31:0] mepcValue       // The saved PC (Return Address)
+    // Software Bus Interface
+    input  logic        busWriteEnable, 
+    input  logic [31:0] busWriteData,   
+    
+    // Output to Program Counter
+    output logic [31:0] mepcValue       
 );
 
-    logic [31:0] mepc; // Machine Exception Program Counter
+    logic [31:0] mepc;
+
+    
 
     always_ff @(posedge clock or negedge resetActiveLow) begin
         if (!resetActiveLow) begin
             mepc <= 32'b0;
-        end else if (csrWriteEnable) begin
-            // When taking a trap, save the current PC here
+        end 
+        // SOFTWARE PRIORITY: Allows the scheduler to switch tasks
+        else if (busWriteEnable) begin
+            mepc <= busWriteData;
+        end 
+        // HARDWARE SAVE: Saves the current PC during a trap
+        else if (csrWriteEnable) begin
             mepc <= pcFromCore;
         end
     end
 
-    // Continuous Read
     assign mepcValue = mepc;
 
 endmodule
