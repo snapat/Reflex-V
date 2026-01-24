@@ -22,35 +22,37 @@ The following simulation output demonstrates the core's ability to handle **hard
 The SoC features a custom **Harvard Architecture** utilizing a decoupled AXI-Lite interconnect. The design emphasizes **Hardware/Software Co-Design**, exposing low-level system events directly to the firmware via a strict Memory-Mapped I/O (MMIO) interface.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#333333', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#ffffff'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#ffffff'}}}%%
 graph LR
-    %% --- STYLING DEFINITIONS ---
+    %% --- STYLING ---
+    %% Professional Engineering Pastel Palette
     classDef cpu fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000;
     classDef bus fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000;
     classDef mem fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000;
     classDef periph fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
     classDef critical stroke:#d32f2f,stroke-width:3px,color:#d32f2f;
 
-    %% --- 1. CPU CORE (Left) ---
+    %% --- 1. CPU CORE (The Master) ---
     subgraph CPU [CPU Core]
         direction TB
         PC[Program<br/>Counter]:::cpu
         Ctrl[Control<br/>Unit]:::cpu
-        CSR[CSR/MEPC<br/>Unit]:::cpu
+        CSR[CSR Unit<br/>(MEPC)]:::cpu
         Reg[Register<br/>File]:::cpu
         ALU[ALU]:::cpu
     end
 
-    %% --- 2. BUS (Center) ---
+    %% --- 2. BUS INTERCONNECT (The Hub) ---
     Bus((AXI-Lite<br/>Bus)):::bus
 
-    %% --- 3. SLAVES (Right - Split to fix arrow overlap) ---
+    %% --- 3. MEMORY (Slaves) ---
     subgraph MEM [Memory]
         direction TB
         ROM[Instruction<br/>ROM]:::mem
         RAM[Data<br/>RAM]:::mem
     end
 
+    %% --- 4. PERIPHERALS (Slaves) ---
     subgraph IO [Peripherals]
         direction TB
         Timer[System<br/>Timer]:::periph
@@ -59,32 +61,37 @@ graph LR
 
     %% --- CONNECTIONS ---
     
-    %% A. The Critical Preemption Loop (Red Path)
-    Timer ==>|Interrupt Signal| Ctrl:::critical
-    Ctrl -.->|Trap to 0x10| PC:::critical
+    %% A. The "Red" Preemption Loop (Hardware -> Software)
+    Timer ==>|Interrupt| Ctrl:::critical
+    Ctrl -.->|Trap Force| PC:::critical
     CSR ==>|Restore PC| PC:::critical
 
-    %% B. Instruction Fetch
-    PC -->|Addr| ROM
-    ROM -->|Instr| Ctrl
+    %% B. Instruction Fetch (The Cycle Start)
+    PC -->|Fetch Addr| ROM
+    ROM -->|Instruction| Ctrl
 
-    %% C. Execution Flow
+    %% C. CPU Internal Datapath
     Ctrl -->|Control| ALU
     Ctrl -->|Control| Reg
     Reg -->|Op A| ALU
-    Reg -->|Op B| Bus
-    ALU -->|Addr| Bus
+    
+    %% FIX: Added ALU Feedback loop (Standard R-Type Instruction)
+    ALU -->|Result| Reg
 
-    %% D. Bus Routing (Split to reduce crossing)
-    Bus -->|Write| RAM
-    Bus -->|Write| UART
-    Bus -->|Write| CSR
+    %% D. CPU to Bus Interface
+    Reg -->|Write Data| Bus
+    ALU -->|Address| Bus
 
-    %% E. Read Returns
-    RAM -.->|Data| Bus
-    ROM -.->|Data| Bus
-    Bus -.->|Return| Reg
-    CSR -.->|Data| Bus
+    %% E. Bus Routing (Master -> Slave)
+    Bus -->|Addr/Data| RAM
+    Bus -->|Addr/Data| UART
+    Bus -->|Addr/Data| CSR
+
+    %% F. Read Returns (Slave -> Master)
+    RAM -.->|Read Data| Bus
+    ROM -.->|Const Data| Bus
+    CSR -.->|Read Data| Bus
+    Bus -.->|Bus Return| Reg
 ```
 
 ---
