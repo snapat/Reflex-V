@@ -22,65 +22,69 @@ The following simulation output demonstrates the core's ability to handle **hard
 The SoC features a custom **Harvard Architecture** utilizing a decoupled AXI-Lite interconnect. The design emphasizes **Hardware/Software Co-Design**, exposing low-level system events directly to the firmware via a strict Memory-Mapped I/O (MMIO) interface.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#000000', 'textColor': '#000000', 'clusterBkg': '#ffffff', 'clusterBorder': '#000000', 'titleColor': '#000000'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#333333', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#ffffff'}}}%%
 graph LR
-    %% --- STYLING ---
-    classDef cluster fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
-    classDef cpu fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000;
-    classDef bus fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000000;
-    classDef slave fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000;
-    classDef critical stroke:#d50000,stroke-width:4px,color:#000000;
+    %% --- STYLING DEFINITIONS ---
+    classDef cpu fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000;
+    classDef bus fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000;
+    classDef mem fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000;
+    classDef periph fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
+    classDef critical stroke:#d32f2f,stroke-width:3px,color:#d32f2f;
 
-    %% --- LEFT COLUMN: CPU CORE ---
+    %% --- 1. CPU CORE (Left) ---
     subgraph CPU [CPU Core]
         direction TB
-        PC[PC]:::cpu
-        Controller[Controller]:::cpu
-        CSR[CSR Unit]:::cpu
-        RegFile[RegFile]:::cpu
+        PC[Program<br/>Counter]:::cpu
+        Ctrl[Control<br/>Unit]:::cpu
+        CSR[CSR/MEPC<br/>Unit]:::cpu
+        Reg[Register<br/>File]:::cpu
         ALU[ALU]:::cpu
     end
 
-    %% --- CENTER COLUMN: BUS ---
+    %% --- 2. BUS (Center) ---
     Bus((AXI-Lite<br/>Bus)):::bus
 
-    %% --- RIGHT COLUMN: SLAVES ---
-    subgraph SLAVES [Memory & I/O]
+    %% --- 3. SLAVES (Right - Split to fix arrow overlap) ---
+    subgraph MEM [Memory]
         direction TB
-        ROM[ROM]:::slave
-        RAM[RAM]:::slave
-        UART[UART]:::slave
-        Timer[Timer]:::slave
+        ROM[Instruction<br/>ROM]:::mem
+        RAM[Data<br/>RAM]:::mem
+    end
+
+    subgraph IO [Peripherals]
+        direction TB
+        Timer[System<br/>Timer]:::periph
+        UART[UART<br/>TX]:::periph
     end
 
     %% --- CONNECTIONS ---
     
-    %% 1. Critical Loops (Interrupts)
-    Timer ==>|IRQ| Controller:::critical
-    Controller -.->|Trap 0x10| PC:::critical
-    CSR ==>|mepc| PC:::critical
+    %% A. The Critical Preemption Loop (Red Path)
+    Timer ==>|Interrupt Signal| Ctrl:::critical
+    Ctrl -.->|Trap to 0x10| PC:::critical
+    CSR ==>|Restore PC| PC:::critical
 
-    %% 2. Fetch & Decode
+    %% B. Instruction Fetch
     PC -->|Addr| ROM
-    ROM -->|Instr| Controller
+    ROM -->|Instr| Ctrl
 
-    %% 3. Datapath Execution
-    Controller -->|Ctrl| ALU
-    Controller -->|Ctrl| RegFile
-    RegFile -->|OpA| ALU
-    RegFile -->|OpB| Bus
+    %% C. Execution Flow
+    Ctrl -->|Control| ALU
+    Ctrl -->|Control| Reg
+    Reg -->|Op A| ALU
+    Reg -->|Op B| Bus
     ALU -->|Addr| Bus
 
-    %% 4. Bus Writes
+    %% D. Bus Routing (Split to reduce crossing)
     Bus -->|Write| RAM
     Bus -->|Write| UART
     Bus -->|Write| CSR
 
-    %% 5. Bus Reads
-    RAM -.->|Read| Bus
-    ROM -.->|Const| Bus
-    Bus -.->|Data| RegFile
-    CSR -.->|Read| Bus
+    %% E. Read Returns
+    RAM -.->|Data| Bus
+    ROM -.->|Data| Bus
+    Bus -.->|Return| Reg
+    CSR -.->|Data| Bus
 ```
 
 ---
