@@ -22,30 +22,6 @@ The following simulation output demonstrates the core's ability to handle **hard
 The SoC features a custom **Harvard Architecture** utilizing a decoupled AXI-Lite interconnect. The design emphasizes **Hardware/Software Co-Design**, exposing low-level system events directly to the firmware via a strict Memory-Mapped I/O (MMIO) interface.
 
 ```mermaid
-# RISC-V Preemptive Multitasking SoC
-
-![Verification](https://img.shields.io/badge/Verification-Passing-success?style=for-the-badge&logo=githubactions)
-![Simulation](https://img.shields.io/badge/Simulation-Verilator-blue?style=for-the-badge&logo=cplusplus)
-![Language](https://img.shields.io/badge/RTL-SystemVerilog-orange?style=for-the-badge)
-![Architecture](https://img.shields.io/badge/ISA-RISC--V_rv32i-lightgrey?style=for-the-badge)
-
-> **A synthesized, cycle-accurate 32-bit RISC-V processor implementing hardware-enforced preemptive multitasking and a custom bare-metal kernel.**
-
----
-
-## System Demonstration: Preemptive Task Switching
-The following simulation output demonstrates the core's ability to handle **hardware-triggered context switches**. The system timer forces a trap every 2,000 clock cycles, causing the kernel to preempt the current thread (`Task A`) and schedule the next ready thread (`Task B`) deterministically.
-
-![Context Switch Demo](images/demo_switch.gif)
-*(Figure 1: Real-time kernel scheduler operation within the Verilator simulation environment)*
-
----
-
-## System Architecture
-
-The SoC features a custom **Harvard Architecture** utilizing a decoupled AXI-Lite interconnect. The design emphasizes **Hardware/Software Co-Design**, exposing low-level system events directly to the firmware via a strict Memory-Mapped I/O (MMIO) interface.
-
-```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#ffffff'}}}%%
 graph LR
     %% --- STYLING ---
