@@ -1,42 +1,98 @@
-module uart_tx #(parameter CLKS_PER_BIT = 108) (
-    input       i_Clk,
-    input       i_Tx_DV,
-    input [7:0] i_Tx_Byte,
-    output      i_Tx_Active,
-    output reg  o_Tx_Serial,
-    output      o_Tx_Done
+module uart_tx #(parameter clocksPerBit = 108) (
+    input        systemClock,
+    input        transmitDataValid,
+    input  [7:0] transmitByte,
+    output       isTransmitActive,
+    output reg   serialDataOutput,
+    output       isTransmitDone
 );
-    localparam s_IDLE = 3'b000, s_TX_START_BIT = 3'b001, s_TX_DATA_BITS = 3'b010, s_TX_STOP_BIT = 3'b011, s_CLEANUP = 3'b100;
-    reg [2:0] r_SM_Main = 0;
-    reg [15:0] r_Clk_Count = 0;
-    reg [2:0] r_Bit_Index = 0;
-    reg [7:0] r_Tx_Data = 0;
-    reg r_Tx_Done = 0, r_Tx_Active = 0;
 
-    always @(posedge i_Clk) begin
-        case (r_SM_Main)
-            s_IDLE: begin
-                o_Tx_Serial <= 1'b1; r_Tx_Done <= 1'b0; r_Tx_Active <= 1'b0; r_Clk_Count <= 0; r_Bit_Index <= 0;
-                if (i_Tx_DV == 1'b1) begin r_Tx_Active <= 1'b1; r_Tx_Data <= i_Tx_Byte; r_SM_Main <= s_TX_START_BIT; end
+    // State machine encodings
+    localparam stateIdle         = 3'b000;
+    localparam stateTransmitStart = 3'b001;
+    localparam stateTransmitData  = 3'b010;
+    localparam stateTransmitStop  = 3'b011;
+    localparam stateCleanup       = 3'b100;
+
+    // Internal registers
+    reg [2:0]  mainStateMachine   = 0;
+    reg [15:0] clockCycleCounter  = 0;
+    reg [2:0]  bitIndexCounter    = 0;
+    reg [7:0]  transmitDataBuffer = 0;
+    reg        transmitDoneFlag   = 0;
+    reg        transmitActiveFlag = 0;
+
+    always @(posedge systemClock) begin
+        case (mainStateMachine)
+            
+            // Wait for transmit pulse; reset counters
+            stateIdle: begin
+                serialDataOutput   <= 1'b1; // Drive high (idle)
+                transmitDoneFlag   <= 1'b0;
+                transmitActiveFlag <= 1'b0;
+                clockCycleCounter  <= 0;
+                bitIndexCounter    <= 0;
+
+                if (transmitDataValid == 1'b1) begin
+                    transmitActiveFlag <= 1'b1;
+                    transmitDataBuffer <= transmitByte;
+                    mainStateMachine   <= stateTransmitStart;
+                end
             end
-            s_TX_START_BIT: begin
-                o_Tx_Serial <= 1'b0;
-                if (r_Clk_Count < CLKS_PER_BIT-1) begin r_Clk_Count <= r_Clk_Count + 1; end
-                else begin r_Clk_Count <= 0; r_SM_Main <= s_TX_DATA_BITS; end
+
+            // Drive line LOW for 1 bit period (Start Bit)
+            stateTransmitStart: begin
+                serialDataOutput <= 1'b0;
+                if (clockCycleCounter < clocksPerBit - 1) begin
+                    clockCycleCounter <= clockCycleCounter + 1;
+                end else begin
+                    clockCycleCounter <= 0;
+                    mainStateMachine   <= stateTransmitData;
+                end
             end
-            s_TX_DATA_BITS: begin
-                o_Tx_Serial <= r_Tx_Data[r_Bit_Index];
-                if (r_Clk_Count < CLKS_PER_BIT-1) begin r_Clk_Count <= r_Clk_Count + 1; end
-                else begin r_Clk_Count <= 0; if (r_Bit_Index < 7) begin r_Bit_Index <= r_Bit_Index + 1; end else begin r_Bit_Index <= 0; r_SM_Main <= s_TX_STOP_BIT; end end
+
+            // Shift out 8 bits, LSB first
+            stateTransmitData: begin
+                serialDataOutput <= transmitDataBuffer[bitIndexCounter];
+                if (clockCycleCounter < clocksPerBit - 1) begin
+                    clockCycleCounter <= clockCycleCounter + 1;
+                end else begin
+                    clockCycleCounter <= 0;
+                    // Check if all 8 bits are sent
+                    if (bitIndexCounter < 7) begin
+                        bitIndexCounter <= bitIndexCounter + 1;
+                    end else begin
+                        bitIndexCounter <= 0;
+                        mainStateMachine <= stateTransmitStop;
+                    end
+                end
             end
-            s_TX_STOP_BIT: begin
-                o_Tx_Serial <= 1'b1;
-                if (r_Clk_Count < CLKS_PER_BIT-1) begin r_Clk_Count <= r_Clk_Count + 1; end
-                else begin r_Tx_Done <= 1'b1; r_Clk_Count <= 0; r_SM_Main <= s_CLEANUP; r_Tx_Active <= 1'b0; end
+
+            // Drive line HIGH for 1 bit period (Stop Bit)
+            stateTransmitStop: begin
+                serialDataOutput <= 1'b1;
+                if (clockCycleCounter < clocksPerBit - 1) begin
+                    clockCycleCounter <= clockCycleCounter + 1;
+                end else begin
+                    transmitDoneFlag   <= 1'b1;
+                    clockCycleCounter  <= 0;
+                    mainStateMachine   <= stateCleanup;
+                    transmitActiveFlag <= 1'b0;
+                end
             end
-            s_CLEANUP: begin r_Tx_Done <= 1'b1; r_SM_Main <= s_IDLE; end
-            default: r_SM_Main <= s_IDLE;
+
+            // Single cycle completion pulse
+            stateCleanup: begin
+                transmitDoneFlag <= 1'b1;
+                mainStateMachine <= stateIdle;
+            end
+
+            default: mainStateMachine <= stateIdle;
         endcase
     end
-    assign o_Tx_Done = r_Tx_Done; assign i_Tx_Active = r_Tx_Active;
+
+    // Continuous assignments for flags
+    assign isTransmitDone   = transmitDoneFlag;
+    assign isTransmitActive = transmitActiveFlag;
+
 endmodule
