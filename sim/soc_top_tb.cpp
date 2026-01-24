@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     std::cout << "---------------------------------------------" << std::endl;
 
     // Simulation timing: Scaled for 12.5 MHz CPU frequency
-    const long int MAX_SIM_TICKS = 4000000; 
+    const long int MAX_SIM_TICKS = 1000000; 
 
     // Edge detection registers
     bool lastWriteValid = false; 

@@ -10,10 +10,36 @@
 ---
 
 ## System Demonstration: Preemptive Task Switching
-The following simulation output demonstrates the core's ability to handle **hardware-triggered context switches**. The system timer forces a trap every 2,000 clock cycles, causing the kernel to preempt the current thread (`Task A`) and schedule the next ready thread (`Task B`) deterministically.
+The following simulation log captures the core's ability to handle **hardware-triggered context switches**. The system timer forces a trap every **10,000 clock cycles**, causing the kernel to preempt the current thread (`Task A`) and schedule the next ready thread (`Task B`) deterministically.
 
-![Context Switch Demo](images/demo_switch.gif)
-*(Figure 1: Real-time kernel scheduler operation within the Verilator simulation environment)*
+Note the immediate transition from `A` to `B` upon the interrupt event (`[IRQ]`), demonstrating zero-latency task suspension.
+
+```text
+[SYS] Initializing RV32I SoC Simulation...
+[SYS] Monitoring UART MMIO (0x40000000)
+---------------------------------------------
+
+[IRQ] Timer Trap at Cycle:      1 | Vector PC: 0x00000118
+
+[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAA          [IRQ] Timer Trap at Cycle: 010002 | Vector PC: 0x000001b4
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBB          [IRQ] Timer Trap at Cycle: 020003 | Vector PC: 0x00000210
+
+[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAA          [IRQ] Timer Trap at Cycle: 030004 | Vector PC: 0x20001184
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBB          [IRQ] Timer Trap at Cycle: 040005 | Vector PC: 0x00000210
+
+[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAA          [IRQ] Timer Trap at Cycle: 050006 | Vector PC: 0x20001184
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+```
 
 ---
 
@@ -133,7 +159,7 @@ The core was validated using a multi-layered verification strategy, progressing 
 ### Interrupt Latency Analysis
 To validate the atomicity of the preemption mechanism, simulation traces were analyzed to measure the cycle-accurate response of the Control Unit.
 
-![Before Interrupt Waveform](images/BeforeInterrupt.png)
+![Interrupt Waveform](images/reflex_proof.png)
 
 > **Trace Analysis:**
 > 1.  **Event Trigger:** `timerCount` reaches the comparator threshold.

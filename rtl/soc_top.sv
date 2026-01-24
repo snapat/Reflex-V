@@ -14,7 +14,7 @@ module soc_top (
     assign cpuClock = clockDivider[2]; 
     always_ff @(posedge clock) clockDivider <= clockDivider + 1;
 
-    localparam TIMER_LIMIT = 50000; 
+    localparam TIMER_LIMIT = 10000; 
     always_ff @(posedge cpuClock or negedge resetActiveLow) begin
         if (!resetActiveLow) begin
             timerCount     <= 0;
