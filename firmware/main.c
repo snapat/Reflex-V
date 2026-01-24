@@ -10,14 +10,14 @@ void task_A(void) {
     while (1) {
         print_str("A");
         // Delay loop so we don't spam too fast
-        for (volatile int i = 0; i < 500; i++); 
+        for (volatile int i = 0; i < 10000; i++); 
     }
 }
 
 void task_B(void) {
     while (1) {
         print_str("B");
-        for (volatile int i = 0; i < 500; i++);
+        for (volatile int i = 0; i < 10000; i++);
     }
 }
 
