@@ -66,7 +66,7 @@ graph TD
 
     %% CRITICAL INTERRUPT PATH
     Timer ==>|timerInterrupt| Controller:::critical
-    Controller -.->|Force Trap Vector (0x10)| PC:::critical
+    Controller -.->|Force Trap Vector 0x10| PC:::critical
     CSR ==>|mepc Restore| PC:::critical
 
     %% Bus Routing
