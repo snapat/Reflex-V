@@ -27,9 +27,9 @@ static inline void print_hex(uint32_t val) {
 
 // Helper: Print a simple string
 static inline void print_str(const char* s) {
-    while (*s) {
+
         uart_putc(*s++);
-    }
+
 }
 
 #endif

@@ -5,14 +5,16 @@ module soc_top(
     output logic       uartTransmit    
 );
 
-    // --- 0. CLOCK DIVIDER ---
-    logic [2:0] clockDivider;
+    // --- 0. CLOCK SETUP ---
     logic       cpuClock;
+    assign cpuClock = clockDivider[2]; // 12.5 MHz
+
+    logic [2:0] clockDivider;
     always_ff @(posedge clock) clockDivider <= clockDivider + 1;
-    assign cpuClock = clockDivider[2]; // CPU runs at 1/8th speed
+    
 
     // --- INTERNAL SIGNALS ---
-    logic [31:0] programCounter, nextProgramCounter, instruction, immediateValue;
+    logic [31:0] programCounter /* verilator public_flat */, nextProgramCounter, instruction, immediateValue;
     logic [31:0] readData1, readData2, aluResult, busReadData, ramReadData;
     logic [31:0] ramWriteAddress, ramReadAddress, ramWriteData;
     logic [31:0] romBusAddress, romBusData;
@@ -20,58 +22,55 @@ module soc_top(
     logic        registerWriteEnable, memoryWriteEnable, aluInputSource, resultSource, isBranch, zeroFlag;
     logic        ramWriteValid, csrWriteEnable, isTrap, isReturn;
     logic [2:0]  aluControl;
-    logic        ioWriteValid;
-    logic [31:0] ioWriteData, ioWriteAddress, ioReadAddress;
+
+    // --- EXPOSED SIGNALS FOR C++ TESTBENCH ---
+    logic        ioWriteValid   /* verilator public_flat */;
+    logic [31:0] ioWriteData    /* verilator public_flat */;
+    logic [31:0] ioWriteAddress /* verilator public_flat */;
+    logic [31:0] ioReadAddress;
+    
     logic        uart_is_busy;
 
-    // --- PREEMPTION HARDWARE ---
+    // --- PREEMPTION HARDWARE (DETERMINISTIC FIX) ---
     logic [31:0] timerCount;
-    logic        timerInterrupt;
+    logic        timerInterrupt /* verilator public_flat */;
     
-    // FAST TIMER for Simulation (4000 CPU cycles)
-    localparam   TIMER_LIMIT = 4000; 
+    // 50,000 Cycles = 4ms at 12.5MHz (Good slice time)
+    localparam   TIMER_LIMIT = 5000; 
 
     always_ff @(posedge cpuClock or negedge resetActiveLow) begin
         if (!resetActiveLow) begin
             timerCount <= 0;
             timerInterrupt <= 0;
         end else begin
+            // 1. Run the Counter
             if (timerCount >= TIMER_LIMIT) begin
                 timerCount <= 0;
-                timerInterrupt <= 1; // Pulse High
-                // DEBUG SPY:
-                $display("[HW-TIMER] Interrupt Fired at PC: %h", programCounter);
             end else begin
                 timerCount <= timerCount + 1;
-                timerInterrupt <= 0;
             end
+
+            // 2. The "Sticky Doorbell" Logic
+            // Instead of pulsing for 1 cycle, we hold it HIGH for 2000 cycles.
+            // This ensures the CPU catches it even if waiting on UART (1080 cycles).
+            // It drops LOW before the Scheduler finishes (approx 5000 cycles), preventing double-interrupts.
+            if (timerCount < 2000) 
+                timerInterrupt <= 1; 
+            else 
+                timerInterrupt <= 0;
         end
     end
 
-    // --- 1. PC LOGIC (WITH INTERRUPT BYPASS) ---
+    // --- 1. PC LOGIC ---
     logic [31:0] pcBranch; 
     logic isJAL, isJALR;    
     assign pcBranch = programCounter + immediateValue;
     assign isJAL  = (instruction[6:0] == 7'b1101111);
     assign isJALR = (instruction[6:0] == 7'b1100111);
 
-    // FORCE TRAP LOGIC
-    logic forceTrap;
-    assign forceTrap = isTrap || timerInterrupt;
-
-    // DEBUG SPY: Check if we are jumping to Trap Vector
-    always @(posedge cpuClock) begin
-        if (forceTrap) begin
-            $display("[HW-CPU] TRAP ACTIVE! Next PC will be 0x00000010");
-        end
-        if (isReturn) begin
-            $display("[HW-CPU] MRET Executed. Returning to %h", mepcValue);
-        end
-    end
-
     assign nextProgramCounter = 
-        forceTrap ? 32'h00000010 :           // Jump to Trap Vector                   
-        isReturn ? mepcValue :               // Return from Trap (mret)                   
+        (isTrap || timerInterrupt) ? 32'h00000010 :           
+        isReturn ? mepcValue :                                             
         (isBranch & isJALR) ? aluResult :                       
         (isBranch & (zeroFlag | isJAL)) ? pcBranch :            
         (programCounter + 4);                                   
@@ -101,19 +100,11 @@ module soc_top(
 
     imm_gen u_imm_gen (.instruction(instruction), .immediateValue(immediateValue));
 
-    // --- CSR UNIT (WITH AUTOMATIC MEPC SAVE) ---
+    // Auto-Save MEPC on Timer
     logic        csr_bus_write_en;
     logic [31:0] csr_bus_write_data;
-
     assign csr_bus_write_en   = (ioWriteValid && (ioWriteAddress == 32'h40000010)) || timerInterrupt;
     assign csr_bus_write_data = timerInterrupt ? programCounter : ioWriteData;
-    
-    // DEBUG SPY: Confirm MEPC is being saved
-    always @(posedge cpuClock) begin
-        if (timerInterrupt) begin
-            $display("[HW-CSR] Auto-Saving MEPC. Value: %h", programCounter);
-        end
-    end
 
     csr_unit u_csr (
         .clock(cpuClock), .resetActiveLow(resetActiveLow),
@@ -123,7 +114,7 @@ module soc_top(
         .mepcValue(mepcValue)
     );
 
-    // --- LBU FIX ---
+    // LBU Fix
     logic [31:0] alignedReadData;
     always_comb begin
         alignedReadData = busReadData; 
@@ -179,18 +170,12 @@ module soc_top(
         .ramAxiWriteValid(ramWriteValid), .ramAxiReadAddress(ramReadAddress), .ramAxiReadData(ramReadData)
     );
 
+    // SPEEDY UART
     uart_tx #(.CLKS_PER_BIT(108)) u_uart (
         .i_Clk(cpuClock), .i_Tx_DV(ioWriteValid && (ioWriteAddress == 32'h40000000)), 
         .i_Tx_Byte(ioWriteData[7:0]), .o_Tx_Serial(uartTransmit), .i_Tx_Active(uart_is_busy), .o_Tx_Done()
     );
 
     assign debugLeds = programCounter[9:2];
-
-    always @(posedge cpuClock) begin
-        if (ioWriteValid && (ioWriteAddress == 32'h40000000)) begin
-            $write("%c", ioWriteData[7:0]);
-            $fflush(); 
-        end
-    end
 
 endmodule

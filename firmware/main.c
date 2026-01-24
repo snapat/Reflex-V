@@ -8,7 +8,7 @@
 
 void task_A(void) {
     while (1) {
-        print_str("A");
+        print_str("bruh,");
         // Delay loop so we don't spam too fast
         for (volatile int i = 0; i < 500; i++); 
     }
@@ -16,7 +16,7 @@ void task_A(void) {
 
 void task_B(void) {
     while (1) {
-        print_str("B");
+        print_str("yooo,");
         for (volatile int i = 0; i < 500; i++);
     }
 }
