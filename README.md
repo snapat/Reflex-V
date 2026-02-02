@@ -140,7 +140,6 @@ To validate the atomicity of the preemption mechanism, simulation traces were an
 > **Trace Analysis:**
 > 1.  **Event Trigger:** `timerCount` reaches the comparator threshold (or initializes high), asserting `timerInterrupt`.
 > 2.  **Context Capture:** The `pc` signal transitions from the C-Runtime Startup (`0x00000118`) directly to the Trap Vector (`0x00000010`) on the subsequent rising edge.
-> 3.  **Pipeline Integrity:** This confirms the control unit can successfully preempt boot-time initialization code without instruction loss.
 
 ---
 
